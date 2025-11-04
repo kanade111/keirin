@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional
 
 from urllib.request import Request, urlopen
 
@@ -39,6 +40,7 @@ class Provider:
             cached = list(_CACHE[cache_key])
             logger.debug("Provider %s cache hit (%d ids)", self.name, len(cached))
             return cached, None if cached else "cache-empty"
+    def list_race_ids(self, date_str: str) -> List[str]:
         try:
             text = self.fetch(date_str)
         except Exception as exc:  # pragma: no cover - network errors
@@ -51,6 +53,10 @@ class Provider:
         if not race_ids:
             return race_ids, "empty"
         return race_ids, None
+            return []
+        race_ids = self.extract(text)
+        logger.info("Provider %s yielded %d race ids", self.name, len(race_ids))
+        return race_ids
 
 
 KdreamsProvider = Provider(
@@ -81,6 +87,7 @@ def list_race_ids_for_date(
         if not provider:
             continue
         race_ids, reason = provider.list_race_ids(date_str)
+        race_ids = provider.list_race_ids(date_str)
         if venues:
             race_ids = [rid for rid in race_ids if any(venue in rid for venue in venues)]
         if race_ids:
