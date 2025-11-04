@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Iterable, List
+from typing import Dict, List
 
 from utils import ensure_directory, get_logger
 
@@ -119,6 +120,12 @@ def _write_csv(path: str | Path, rows: List[Dict[str, str]], preferred_order: Li
         return
     ensure_directory(Path(path).parent)
     headers = _collect_headers(rows, preferred_order)
+
+def _write_csv(path: str | Path, rows: List[Dict[str, str]]) -> None:
+    if not rows:
+        return
+    ensure_directory(Path(path).parent)
+    headers = list(rows[0].keys())
     with open(path, "w", encoding="utf-8") as f:
         f.write(",".join(headers) + "\n")
         for row in rows:
@@ -140,6 +147,7 @@ def to_training_csv(entry_rows: List[Dict[str, str]], info_rows: List[Dict[str, 
     for info in info_rows:
         rid = str(info.get("race_id"))
         info_map[rid] = _normalize_row(info, INFO_DEFAULTS)
+        info_map[rid] = info
 
     enriched: List[Dict[str, str]] = []
     for row in entry_rows:
@@ -156,6 +164,12 @@ def to_training_csv(entry_rows: List[Dict[str, str]], info_rows: List[Dict[str, 
 
     if enriched:
         _write_csv(out_path, enriched, TRAINING_COLUMNS_ORDER)
+        combined = dict(info_map.get(rid, {}))
+        combined.update(row)
+        enriched.append(combined)
+
+    if enriched:
+        _write_csv(out_path, enriched)
         logger.info("Training CSV written to %s", out_path)
 
 
@@ -167,5 +181,10 @@ def to_cards_csv(entry_rows: List[Dict[str, str]], out_path: str) -> None:
         cards.append(entry_norm)
     if cards:
         _write_csv(out_path, cards, CARDS_COLUMNS_ORDER)
+        card = dict(row)
+        card.pop("finish_pos", None)
+        cards.append(card)
+    if cards:
+        _write_csv(out_path, cards)
         logger.info("Cards CSV written to %s", out_path)
 

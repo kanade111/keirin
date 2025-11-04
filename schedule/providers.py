@@ -15,6 +15,13 @@ try:  # pragma: no cover - optional dependency
 except ModuleNotFoundError:  # pragma: no cover - fallback
     from pandas_compat import pd  # type: ignore
 
+import re
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional
+
+from urllib.request import Request, urlopen
+
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -49,6 +56,10 @@ def _rate_limited_fetch(url: str, timeout: int = 10, min_interval: float = 1.0) 
             time.sleep(1.0 + random.uniform(0.0, 0.5))
     raise RuntimeError(f"Failed to fetch {url}")
 
+RACE_ID_PATTERN = re.compile(r"(\d{8}\w{2}\d{2})")
+
+_CACHE: Dict[Tuple[str, str], List[str]] = {}
+
 
 @dataclass
 class Provider:
@@ -59,6 +70,12 @@ class Provider:
         url = self.url_builder(date_str)
         logger.info("Provider %s requesting %s", self.name, url)
         return _rate_limited_fetch(url)
+        headers = {"User-Agent": "keirin-yosou-bot/0.1"}
+        request = Request(url, headers=headers)
+        with urlopen(request, timeout=10) as resp:
+            data = resp.read()
+            encoding = resp.headers.get_content_charset() or "utf-8"
+        return data.decode(encoding, errors="ignore")
 
     def extract(self, text: str) -> List[str]:
         return sorted(set(RACE_ID_PATTERN.findall(text)))
@@ -69,6 +86,7 @@ class Provider:
             cached = list(_CACHE[cache_key])
             logger.debug("Provider %s cache hit (%d ids)", self.name, len(cached))
             return cached, None if cached else "cache-empty"
+    def list_race_ids(self, date_str: str) -> List[str]:
         try:
             text = self.fetch(date_str)
         except Exception as exc:  # pragma: no cover - network errors
@@ -208,6 +226,10 @@ class CharilotoProvider:
         if not race_ids:
             return race_ids, "empty"
         return race_ids, None
+            return []
+        race_ids = self.extract(text)
+        logger.info("Provider %s yielded %d race ids", self.name, len(race_ids))
+        return race_ids
 
 
 KdreamsProvider = Provider(
@@ -230,6 +252,9 @@ def list_race_ids_for_date(
 ) -> List[str]:
     provider_map = {
         "chariloto": Chariloto,
+    providers: str = "kdreams,keirin_jp",
+) -> List[str]:
+    provider_map = {
         "kdreams": KdreamsProvider,
         "keirin_jp": KeirinJpProvider,
     }
@@ -241,6 +266,7 @@ def list_race_ids_for_date(
         if not provider:
             continue
         race_ids, reason = provider.list_race_ids(date_str)
+        race_ids = provider.list_race_ids(date_str)
         if venues:
             race_ids = [rid for rid in race_ids if any(venue in rid for venue in venues)]
         if race_ids:

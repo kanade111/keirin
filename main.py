@@ -58,6 +58,7 @@ def cmd_fetch(args: argparse.Namespace) -> None:
         race_ids = [rid.strip() for rid in args.race_ids.split(",") if rid.strip()]
     elif args.date:
         race_ids = list_race_ids_for_date(args.date, providers=args.providers)
+        race_ids = list_race_ids_for_date(args.date)
     else:
         raise SystemExit("--race-ids または --date を指定してください")
 
@@ -161,6 +162,7 @@ def build_parser() -> argparse.ArgumentParser:
     today_parser = subparsers.add_parser("today", help="今日の買い目を出力")
     today_parser.add_argument("--date", help="対象日")
     today_parser.add_argument("--providers", default="chariloto,kdreams,keirin_jp")
+    today_parser.add_argument("--providers", default="kdreams,keirin_jp")
     today_parser.add_argument("--model", required=True)
     today_parser.add_argument("--budget", type=int, default=10000)
     today_parser.add_argument("--bet-policy", default="flat")

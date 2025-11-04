@@ -6,6 +6,9 @@ import re
 import time
 from html import unescape
 from io import StringIO
+import re
+import time
+from html import unescape
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from urllib.request import Request, urlopen
@@ -51,6 +54,8 @@ def _rate_limit_sleep(last_request: float, rate_limit: float) -> float:
 
 def _fetch(url: str, timeout: int) -> str:
     headers = {"User-Agent": USER_AGENT}
+def _fetch(url: str, timeout: int) -> str:
+    headers = {"User-Agent": "keirin-yosou-bot/0.1"}
     request = Request(url, headers=headers)
     with urlopen(request, timeout=timeout) as resp:
         data = resp.read()
@@ -478,6 +483,25 @@ def race_data_scrape(
         html, last_request = _fetch_with_retries(url, timeout, retries, rate_limit, last_request)
         if html is None:
             continue
+    last_request = 0.0
+
+    for race_id in race_ids:
+        now = time.time()
+        elapsed = now - last_request
+        if elapsed < rate_limit:
+            time.sleep(rate_limit - elapsed)
+        url = _race_urls(str(race_id))
+        html: Optional[str] = None
+        for attempt in range(retries):
+            try:
+                html = _fetch(url, timeout)
+                break
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Fetch failed for %s (%s), retry %d", race_id, exc, attempt + 1)
+                time.sleep(1.0)
+        if html is None:
+            continue
+        last_request = time.time()
         info_rows.extend(_parse_info(html, str(race_id)))
         entry_rows.extend(_parse_entries(html, str(race_id)))
         payout_rows.extend(_parse_payout(html, str(race_id)))
